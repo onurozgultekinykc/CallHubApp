@@ -1,0 +1,77 @@
+stages:
+  - kontrol
+  - deploy
+
+# 🔨 Build & Push Job
+build-and-push:
+  stage: kontrol
+  tags:
+    - docker
+  image: docker:27
+  only:
+    - main
+  services:
+    - name: docker:27-dind
+      alias: docker
+      command:
+        - "--host=tcp://0.0.0.0:2375"
+        - "--insecure-registry=registry.recruiter.com.tr:5050"
+
+  variables:
+    DOCKER_HOST: "tcp://docker:2375"
+    DOCKER_TLS_CERTDIR: ""
+    BUILD_REGISTRY_HOST: "registry.recruiter.com.tr:5050"
+    BUILD_REGISTRY_URL: "http://registry.recruiter.com.tr:5050"
+
+  before_script:
+    - |
+      set -eo pipefail
+      echo "---- docker info (Insecure Registries) ----"
+      docker info | sed -n '/Insecure Registries/,$p'
+      echo "🔐 Docker Registry login (HTTP)..."
+      echo "$CI_JOB_TOKEN" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$BUILD_REGISTRY_URL"
+
+  script:
+    - echo "🚀 Docker build başlatılıyor..."
+    - IMAGE_NAME="${BUILD_REGISTRY_HOST}/recruiter-developers/callhubapp:${CI_COMMIT_SHORT_SHA}"
+    - docker build -t "$IMAGE_NAME" -f CallHubApp/Dockerfile .
+    - docker push "$IMAGE_NAME"
+    # latest tag de basıyoruz
+    - docker tag "$IMAGE_NAME" "${BUILD_REGISTRY_HOST}/recruiter-developers/callhubapp:latest"
+    - docker push "${BUILD_REGISTRY_HOST}/recruiter-developers/callhubapp:latest"
+
+# 🚀 Deploy Job
+deploy-to-server:
+  stage: deploy
+  tags:
+    - docker
+  image: alpine:latest
+
+  before_script:
+    - apk add --no-cache openssh-client docker-cli
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+
+  script:
+    - |
+      ssh -p 2232 -o StrictHostKeyChecking=no root@89.252.185.202 << EOF
+        set -e
+
+        echo "🔐 Registry login yapılıyor..."
+        echo "$CI_JOB_TOKEN" | docker login -u gitlab-ci-token --password-stdin registry.recruiter.com.tr:5050
+
+        echo "🔄 Eski container durduruluyor..."
+        docker stop callhubapp || true
+        docker rm callhubapp || true
+
+        echo "📥 Yeni image çekiliyor..."
+        docker pull registry.recruiter.com.tr:5050/recruiter-developers/callhubapp:latest
+
+        echo "🚀 Yeni container ayağa kaldırılıyor..."
+        docker run -d \
+          --name callhubapp \
+          -p 5199:5199 \
+          -e ASPNETCORE_ENVIRONMENT=Production \
+          --restart always \
+          registry.recruiter.com.tr:5050/recruiter-developers/callhubapp:latest
+      EOF

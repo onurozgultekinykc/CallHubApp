@@ -1,0 +1,36 @@
+﻿@{
+    ViewData["Title"] = "Dashboard";
+    Layout = "_Layout";
+}
+
+<h6 hidden id="ip">@Model</h6>
+
+<div class="container-fluid p-3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h3 class="fw-bold text-primary mb-0">Bağlı Kullanıcılar</h3>
+        <span class="badge bg-info text-dark shadow-sm" id="userCount">0 Kullanıcı</span>
+    </div>
+
+    <div class="table-responsive shadow-sm rounded">
+        <table class="table table-hover align-middle mb-0" id="userTable">
+            <thead class="table-dark">
+                <tr>
+                    <th>CallerId</th>
+                    <th>UserId</th>
+                    <th>ProductId</th>
+                    <th>FirstName</th>
+                    <th>LastName</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Host</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td colspan="9" class="text-center text-muted py-3">Bekleniyor...</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
